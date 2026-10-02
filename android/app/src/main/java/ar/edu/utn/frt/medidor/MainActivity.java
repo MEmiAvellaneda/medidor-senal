@@ -70,7 +70,7 @@ import java.util.concurrent.TimeUnit;
 public class MainActivity extends Activity {
 
     // URL de la planilla (Apps Script). Se puede cambiar desde "Configuración" en la app.
-    static final String SCRIPT_URL_POR_DEFECTO = "";
+    static final String SCRIPT_URL_POR_DEFECTO = "https://script.google.com/macros/s/AKfycbxMnSYOA2H6ESEeqcvboXoYdhkGXOX83ubzK_8o_P6RWWfB6TUhYu0eTO1HzgVeC43Nag/exec";
     static final String SPEED_HOST = "https://speed.cloudflare.com";
     static final String IP_INFO_URL = "https://ipwho.is/";
 

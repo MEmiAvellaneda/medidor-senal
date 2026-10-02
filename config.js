@@ -2,7 +2,7 @@
 window.CONFIG = {
   // URL de la implementación de Google Apps Script (ver README.md).
   // Si queda vacía, la app funciona en "modo demo": guarda las mediciones solo en este navegador.
-  SCRIPT_URL: "",
+  SCRIPT_URL: "https://script.google.com/macros/s/AKfycbxMnSYOA2H6ESEeqcvboXoYdhkGXOX83ubzK_8o_P6RWWfB6TUhYu0eTO1HzgVeC43Nag/exec",
 
   // Servidor para el test de velocidad (permite CORS, gratuito).
   SPEED_HOST: "https://speed.cloudflare.com",

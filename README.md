@@ -16,7 +16,7 @@ Todas mandan las mediciones a la misma planilla, y el panel muestra de dónde vi
 - Instalar `MedidorSenal-UTN.apk` en el celular. Hay que permitir "instalar apps de origen desconocido", porque la app no está en Play Store.
 - Al abrirla, aceptar los permisos de **ubicación** y **teléfono**. Son necesarios para leer la señal y la celda.
 - La URL de la planilla se configura una sola vez, abajo de todo, en "Configuración". Si se escribe en `SCRIPT_URL_POR_DEFECTO` de `MainActivity.java` antes de compilar, ya viene cargada.
-- Para recompilar (con las herramientas que ya están instaladas en esta PC):
+- Las herramientas de Android no funcionan en carpetas con caracteres especiales (como la "ñ" de "señal"). Para recompilar, copiá la carpeta `android` a una ruta sin acentos ni eñes y compilá desde ahí:
   ```
   cd android
   set JAVA_HOME=%LOCALAPPDATA%\MedidorSenal\jdk17
