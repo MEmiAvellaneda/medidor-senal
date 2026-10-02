@@ -18,6 +18,11 @@
     <a class="nav-link" href="estadisticas.html">Ver estadísticas →</a>
   </header>
 
+  <div id="avisoAndroid" class="aviso" hidden>
+    <b>¿Tenés Android?</b> Bajá la app y mide todo sola, incluida la señal real en dBm y la SINR.
+    <a href="MedidorSenal-UTN.apk" download>Descargar app para Android (APK)</a>
+  </div>
+
   <div id="modoDemo" class="aviso" hidden>
     Modo demo: la app no está conectada a la planilla compartida, así que las mediciones se guardan solo en este navegador.
   </div>
@@ -522,6 +527,7 @@ function analizar() {
 ["senal_dbm", "tecnologia", "conexion"].forEach((id) => $(id).addEventListener("input", analizar));
 $("empresa").innerHTML = '<option value="">Elegí una opción</option>' + window.EMPRESAS.map((e) => `<option>${e}</option>`).join("");
 $("modoDemo").hidden = !!CFG.SCRIPT_URL;
+$("avisoAndroid").hidden = !/Android/i.test(navigator.userAgent);
 $("conexion").addEventListener("change", () => { pintarConexion($("conexion").value); sugerirEmpresa(); });
 $("btnMedir").addEventListener("click", medir);
 $("form").addEventListener("submit", enviar);

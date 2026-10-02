@@ -39,7 +39,7 @@
   .dato b { display: block; font: 700 9.5pt/1.2 var(--display); }
   .dato span { font-size: 8.5pt; color: var(--muted); }
 
-  .caminos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+  .caminos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4mm; }
   .camino { border: 1px solid var(--line); border-radius: 4mm; padding: 4mm; display: flex; flex-direction: column; gap: 2.5mm; }
   .camino.destacado { border: 2px solid var(--accent); }
   .etiqueta { align-self: flex-start; font: 700 7.5pt/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 1.5mm 2.5mm; border-radius: 10mm; background: var(--accent); color: #FFFFFF; }
@@ -47,7 +47,7 @@
   .etiqueta.gris { background: var(--muted); }
   ol { margin: 0; padding-left: 5mm; display: flex; flex-direction: column; gap: 1mm; font-size: 9.2pt; }
   .nota { font-size: 8.5pt; color: var(--muted); }
-  code { font: 600 8.5pt var(--mono); background: var(--bg); padding: .3mm 1.2mm; border-radius: 1mm; }
+  code { word-break: break-all; font: 600 8pt var(--mono); background: var(--bg); padding: .3mm 1.2mm; border-radius: 1mm; }
 
   .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 4.5mm; }
   .caja { border: 1px solid var(--line); border-radius: 4mm; padding: 3.8mm 4.5mm; display: flex; flex-direction: column; gap: 2mm; }
@@ -97,7 +97,7 @@
         <span class="etiqueta">Android · recomendado</span>
         <h3>App para Android</h3>
         <ol>
-          <li>Descargá <code>MedidorSenal-UTN.apk</code> del grupo.</li>
+          <li>Escaneá el QR y tocá <b>Descargar app para Android</b>, o bajala de <code>memiavellaneda.github.io/medidor-senal/MedidorSenal-UTN.apk</code></li>
           <li>Abrilo y tocá <b>Instalar</b>. Si pregunta, permití "instalar apps de origen desconocido".</li>
           <li>Aceptá los permisos de <b>ubicación</b> y <b>teléfono</b>.</li>
           <li>Tocá <b>Iniciar medición</b>, después <b>Enviar</b>.</li>
@@ -120,7 +120,7 @@
         <h3>Programa para PC</h3>
         <ol>
           <li>Necesitás Python (gratis, desde Microsoft Store).</li>
-          <li>Descargá la carpeta <code>pc</code> del grupo.</li>
+          <li>Bajá <code>medidor_pc.py</code> de <code>github.com/MEmiAvellaneda/medidor-senal</code> (carpeta pc).</li>
           <li>Ejecutá <code>py medidor_pc.py</code></li>
         </ol>
         <p class="nota">Lee solo el nombre del equipo, la señal WiFi (RSSI), la banda, el canal y el estándar. También se puede medir desde el link del navegador.</p>
