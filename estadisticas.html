@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Estadísticas de Señal UTN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .filtros { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .filtros .campo { min-width: 150px; flex: 1; }
+  .kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  @media (min-width: 700px) { .kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+  .graficos { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  @media (min-width: 900px) { .graficos { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .lienzo { position: relative; height: 280px; }
+  #mapa { height: 360px; border-radius: 10px; border: 1px solid var(--line); }
+  .acciones { display: flex; flex-wrap: wrap; gap: 10px; }
+  .leyenda { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.8rem; color: var(--muted); }
+  .leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+  .leyenda i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  tr.ejemplo td { color: var(--muted); }
+
+  /* Modo en vivo para la presentación */
+  .vivo { border-color: var(--accent); }
+  .vivo-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; align-items: center; }
+  @media (max-width: 700px) { .vivo-grid { grid-template-columns: minmax(0, 1fr); justify-items: center; } }
+  #qr { background: #FFFFFF; padding: 14px; border-radius: 12px; line-height: 0; }
+  #qr img, #qr canvas { width: 240px; height: 240px; max-width: 100%; }
+  .vivo h2 { font: 800 clamp(1.4rem, 3vw, 2.2rem)/1.1 var(--font-display); text-wrap: balance; }
+  .vivo-url { font: 600 0.95rem/1.3 var(--font-mono); color: var(--accent); word-break: break-all; }
+  .vivo-cuenta { display: flex; align-items: baseline; gap: 10px; }
+  .vivo-cuenta b { font: 700 3rem/1 var(--font-mono); font-variant-numeric: tabular-nums; }
+  .en-vivo { display: inline-flex; align-items: center; gap: 8px; color: var(--bad); }
+  .en-vivo::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--bad); animation: latido 1.4s infinite; }
+  @keyframes latido { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+  #feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  #feed li { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--bg); font-size: 0.92rem; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  #feed li.nuevo { border-color: var(--good); animation: entra 0.6s ease-out; }
+  #feed li .vel { font-family: var(--font-mono); font-weight: 700; }
+  @keyframes entra { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+</style>
+</head>
+<body>
+<main class="wrap ancho">
+  <header class="top">
+    <div>
+      <div class="eyebrow">UTN FRT · Comunicación</div>
+      <h1>Estadísticas de las mediciones</h1>
+    </div>
+    <a class="nav-link" href="index.html">← Hacer una medición</a>
+  </header>
+
+  <div id="aviso" class="aviso" hidden></div>
+
+  <section class="card vivo" id="panelVivo" hidden aria-labelledby="t-vivo">
+    <div class="vivo-grid">
+      <div id="qr" aria-label="Código QR para abrir la app de medición"></div>
+      <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+        <div class="eyebrow en-vivo">En vivo · se actualiza cada 8 segundos</div>
+        <h2 id="t-vivo">Escaneá el código y medí tu conexión</h2>
+        <div class="vivo-url" id="vivoUrl"></div>
+        <div id="vivoAvisoLocal" class="aviso error small" hidden>
+          El código apunta a esta computadora (localhost), así que los celulares no van a poder abrirlo. Para la presentación, usá la versión publicada en GitHub Pages.
+        </div>
+        <div class="vivo-cuenta"><b id="vivoN">0</b><span class="muted">mediciones recibidas</span></div>
+        <ul id="feed"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Filtros">
+    <div class="filtros">
+      <div class="campo">
+        <label for="fConexion">Conexión</label>
+        <select id="fConexion"><option value="">Todas</option><option>WiFi</option><option>Datos móviles</option></select>
+      </div>
+      <div class="campo">
+        <label for="fEmpresa">Empresa</label>
+        <select id="fEmpresa"><option value="">Todas</option></select>
+      </div>
+      <div class="campo">
+        <label for="fVariable">Agrupar por</label>
+        <select id="fVariable">
+          <option value="empresa">Empresa</option>
+          <option value="conexion">Conexión (WiFi / datos)</option>
+          <option value="tecnologia">Tecnología (4G / 5G…)</option>
+          <option value="so">Sistema operativo</option>
+          <option value="marca">Marca</option>
+          <option value="lugar">Lugar (interior / exterior)</option>
+          <option value="origen">Origen (web / Android / PC)</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label for="fMetrica">Medida</label>
+        <select id="fMetrica">
+          <option value="bajada_mbps">Velocidad de bajada (Mbps)</option>
+          <option value="subida_mbps">Velocidad de subida (Mbps)</option>
+          <option value="latencia_ms">Latencia (ms)</option>
+          <option value="jitter_ms">Jitter (ms)</option>
+          <option value="senal_dbm">Señal (dBm)</option>
+        </select>
+      </div>
+    </div>
+    <div class="acciones">
+      <button id="btnVivo" class="primario" style="padding:12px 16px;font-size:1rem">Modo en vivo (QR)</button>
+      <button id="btnActualizar">Actualizar datos</button>
+      <button id="btnCSV">Descargar CSV</button>
+      <button id="btnEjemplo" hidden>Cargar 60 mediciones de ejemplo</button>
+      <button id="btnBorrarEjemplo" hidden>Quitar datos de ejemplo</button>
+    </div>
+  </section>
+
+  <section class="kpis" aria-label="Resumen">
+    <div class="metrica"><div class="k">Mediciones</div><div class="v" id="kN">—</div><div class="u">registros</div></div>
+    <div class="metrica"><div class="k">Bajada media</div><div class="v" id="kBajada">—</div><div class="u">Mbps</div></div>
+    <div class="metrica"><div class="k">Subida media</div><div class="v" id="kSubida">—</div><div class="u">Mbps</div></div>
+    <div class="metrica"><div class="k">Latencia media</div><div class="v" id="kLat">—</div><div class="u">ms</div></div>
+    <div class="metrica"><div class="k">Por datos móviles</div><div class="v" id="kDatos">—</div><div class="u">% del total</div></div>
+  </section>
+
+  <section class="card" aria-labelledby="t-resumen">
+    <h2 id="t-resumen">Medidas estadísticas por grupo</h2>
+    <div class="scroll-x"><table id="tablaResumen"></table></div>
+    <p class="small muted" style="margin:0">Desvío = desvío estándar muestral. Los grupos con menos de 5 mediciones no son representativos.</p>
+  </section>
+
+  <div class="graficos">
+    <section class="card"><h2 id="tGrupo">Promedio por grupo</h2><div class="lienzo"><canvas id="gGrupo"></canvas></div></section>
+    <section class="card"><h2 id="tHist">Distribución (histograma)</h2><div class="lienzo"><canvas id="gHist"></canvas></div></section>
+    <section class="card"><h2>Sistemas operativos</h2><div class="lienzo"><canvas id="gSO"></canvas></div></section>
+    <section class="card"><h2>Marcas de celular</h2><div class="lienzo"><canvas id="gMarca"></canvas></div></section>
+  </div>
+
+  <section class="card" aria-labelledby="t-teoria">
+    <h2 id="t-teoria">Relación con la teoría (Unidades 3, 5 y 7)</h2>
+    <div class="filtros">
+      <div class="campo">
+        <label for="tB">Ancho de banda del canal B (MHz)</label>
+        <input id="tB" type="number" min="1" max="400" value="20">
+      </div>
+      <div class="campo">
+        <label for="tT">Temperatura T (°C)</label>
+        <input id="tT" type="number" min="-20" max="60" value="25">
+      </div>
+      <div class="campo" style="flex:2">
+        <span class="small muted" id="tRuido"></span>
+      </div>
+    </div>
+    <div class="graficos">
+      <div>
+        <h2 style="font-size:0.95rem">Señal (dBm) contra velocidad de bajada</h2>
+        <div class="lienzo"><canvas id="gDisp"></canvas></div>
+        <p class="small muted" id="tPearson" style="margin:0"></p>
+      </div>
+      <div class="scroll-x" style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <h2 style="font-size:0.95rem">Capacidad de Shannon: C = B · log₂(1 + S/N)</h2>
+          <table id="tablaShannon"></table>
+        </div>
+        <div>
+          <h2 style="font-size:0.95rem">Velocidad medida contra el máximo de cada tecnología</h2>
+          <table id="tablaTec"></table>
+        </div>
+      </div>
+    </div>
+    <p class="small muted" style="margin:0">
+      En datos móviles, la señal que muestra Android es RSRP (una subportadora de 15 kHz); para la SNR se pasa a potencia total con S = RSRP + 10·log₁₀(12 · 5 · B).
+      Modelo simplificado de la cátedra: el ruido es solo térmico (N = kTB) y no se consideran la interferencia ni el factor de ruido del receptor.
+      Por eso la capacidad de Shannon calculada es un límite superior teórico, no una velocidad esperable.
+    </p>
+  </section>
+
+  <section class="card" aria-labelledby="t-mapa">
+    <h2 id="t-mapa">Mapa de mediciones (color según bajada)</h2>
+    <div id="mapa"></div>
+    <div class="leyenda">
+      <span><i style="background:#BF3A2B"></i>menos de 5 Mbps</span>
+      <span><i style="background:#D98A00"></i>5 a 20 Mbps</span>
+      <span><i style="background:#2E9E5B"></i>20 a 100 Mbps</span>
+      <span><i style="background:#1D55C0"></i>más de 100 Mbps</span>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t-tabla">
+    <h2 id="t-tabla">Todas las mediciones</h2>
+    <div class="scroll-x"><table id="tablaDatos"></table></div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="config.js"></script>
+<script src="teoria.js"></script>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const CFG = window.CONFIG;
+const NUMS = ["bajada_mbps", "subida_mbps", "latencia_ms", "jitter_ms", "senal_dbm", "barras", "lat", "lon", "precision_m", "sinr_db", "ancho_mhz"];
+const ETIQ = { bajada_mbps: "Bajada (Mbps)", subida_mbps: "Subida (Mbps)", latencia_ms: "Latencia (ms)", jitter_ms: "Jitter (ms)", senal_dbm: "Señal (dBm)" };
+let datos = [];
+const graficos = {};
+let mapa, capa;
+
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const SERIE = ["#1D55C0", "#D98A00", "#2E9E5B", "#8E44AD", "#C0392B", "#16A2B8", "#7F8C8D", "#B5651D"];
+
+// ---------- Carga de datos ----------
+function normalizar(f) {
+  const r = { ...f };
+  for (const k of NUMS) r[k] = r[k] === "" || r[k] == null ? null : Number(r[k]);
+  return r;
+}
+function leerLocal() {
+  try { return JSON.parse(localStorage.getItem("mediciones") || "[]"); } catch (e) { return []; }
+}
+function escribirLocal(lista) {
+  try { localStorage.setItem("mediciones", JSON.stringify(lista)); } catch (e) { /* sin almacenamiento */ }
+}
+async function cargar() {
+  const aviso = $("aviso");
+  if (CFG.SCRIPT_URL) {
+    try {
+      const r = await fetch(CFG.SCRIPT_URL + "?r=" + Date.now());
+      const j = await r.json();
+      datos = (j.filas || []).map(normalizar);
+      aviso.hidden = true;
+    } catch (e) {
+      datos = leerLocal().map(normalizar);
+      aviso.hidden = false; aviso.className = "aviso error";
+      aviso.textContent = "No se pudo leer la planilla compartida. Se muestran solo las mediciones guardadas en este navegador.";
+    }
+    $("btnEjemplo").hidden = true; $("btnBorrarEjemplo").hidden = true;
+  } else {
+    datos = leerLocal().map(normalizar);
+    aviso.hidden = false; aviso.className = "aviso";
+    aviso.textContent = "Modo demo: se muestran las mediciones guardadas en este navegador. Para juntar las de todos, configurá la planilla (ver README.md).";
+    const hayEjemplo = datos.some(esEjemplo);
+    $("btnEjemplo").hidden = hayEjemplo; $("btnBorrarEjemplo").hidden = !hayEjemplo;
+  }
+  const empresas = [...new Set(datos.map((d) => d.empresa).filter(Boolean))].sort();
+  const sel = $("fEmpresa"), actual = sel.value;
+  sel.innerHTML = '<option value="">Todas</option>' + empresas.map((e) => `<option>${esc(e)}</option>`).join("");
+  sel.value = empresas.includes(actual) ? actual : "";
+  render();
+  actualizarVivo();
+}
+
+// ---------- Modo en vivo (presentación) ----------
+let vivoTimer = null, qrHecho = false;
+const idsVistos = new Set();
+function describir(d) {
+  const equipo = d.nombre_dispositivo || [d.marca, d.modelo].filter(Boolean).join(" ") || d.tipo_dispositivo || "Equipo";
+  const red = [d.conexion, d.tecnologia].filter(Boolean).join(" ");
+  return `<span><b>${esc(equipo)}</b> · ${esc(d.empresa || "?")} · ${esc(red)}</span><span class="vel">${fmt(d.bajada_mbps)} Mbps</span>`;
+}
+function actualizarVivo() {
+  const nuevos = datos.filter((d) => !idsVistos.has(d.id));
+  const habiaDatos = idsVistos.size > 0;
+  datos.forEach((d) => idsVistos.add(d.id));
+  if ($("panelVivo").hidden) return;
+  $("vivoN").textContent = datos.length;
+  const feed = $("feed");
+  if (!feed.children.length) {
+    // Primera vez: las últimas 5 mediciones
+    [...datos].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))).slice(0, 5)
+      .forEach((d) => { const li = document.createElement("li"); li.innerHTML = describir(d); feed.appendChild(li); });
+  } else if (habiaDatos) {
+    for (const d of nuevos) {
+      const li = document.createElement("li");
+      li.className = "nuevo"; li.innerHTML = describir(d);
+      feed.prepend(li);
+    }
+    while (feed.children.length > 6) feed.lastChild.remove();
+  }
+}
+function alternarVivo() {
+  const panel = $("panelVivo");
+  panel.hidden = !panel.hidden;
+  $("btnVivo").textContent = panel.hidden ? "Modo en vivo (QR)" : "Salir del modo en vivo";
+  if (panel.hidden) { clearInterval(vivoTimer); vivoTimer = null; return; }
+  const url = new URL("index.html", location.href).href;
+  $("vivoUrl").textContent = url;
+  $("vivoAvisoLocal").hidden = !/^(localhost|127\.|\[::1\])/.test(location.hostname);
+  if (!qrHecho && window.QRCode) {
+    new QRCode($("qr"), { text: url, width: 240, height: 240, colorDark: "#142030", colorLight: "#FFFFFF", correctLevel: QRCode.CorrectLevel.M });
+    qrHecho = true;
+  }
+  $("feed").innerHTML = "";
+  actualizarVivo();
+  vivoTimer = setInterval(cargar, 8000);
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ---------- Datos de ejemplo (solo modo demo, marcados como ejemplo) ----------
+const esEjemplo = (d) => String(d.comentario || "").startsWith("DATO DE EJEMPLO");
+function generarEjemplo(n = 60) {
+  const azar = (a, b) => a + Math.random() * (b - a);
+  const elegir = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const equipos = [["Samsung", "Galaxy A54", "Android"], ["Samsung", "Galaxy A14", "Android"], ["Motorola", "moto g54", "Android"],
+    ["Motorola", "moto e13", "Android"], ["Xiaomi", "Redmi Note 13", "Android"], ["Apple", "iPhone", "iOS"], ["Apple", "iPhone", "iOS"]];
+  const base = { Personal: 1.0, Claro: 1.1, Movistar: 0.8 };
+  const lista = [];
+  for (let i = 0; i < n; i++) {
+    const [marca, modelo, so] = elegir(equipos);
+    const empresa = elegir(["Personal", "Claro", "Movistar"]);
+    const wifi = Math.random() < 0.45;
+    const tec = wifi ? "" : (Math.random() < 0.2 ? "5G" : Math.random() < 0.9 ? "4G" : "3G");
+    const dbm = wifi ? null : Math.round(azar(-118, -78));
+    // Con datos móviles, a peor señal menos velocidad (más una variación al azar)
+    const factorSenal = wifi ? 1 : Math.min(1.2, Math.max(0.08, (dbm + 122) / 38)) * azar(0.6, 1.3);
+    const bajada = (wifi ? azar(15, 180) : (tec === "5G" ? azar(150, 320) : tec === "4G" ? azar(20, 70) : azar(1, 6)) * base[empresa]) * factorSenal;
+    lista.push({
+      id: "ejemplo-" + i, fecha: new Date(Date.now() - azar(0, 7 * 864e5)).toISOString(),
+      tipo_dispositivo: "Celular", nombre_dispositivo: Math.random() < 0.5 ? `${modelo} ${i + 1}` : "", marca, modelo, so, version_so: so === "iOS" ? "17.5" : String(Math.round(azar(11, 15))),
+      navegador: so === "iOS" ? "Safari" : "Chrome", conexion: wifi ? "WiFi" : "Datos móviles", tecnologia: tec,
+      tipo_red_detectado: "", empresa, isp_detectado: "", asn: "",
+      bajada_mbps: +bajada.toFixed(2), subida_mbps: +(bajada * azar(0.15, 0.5)).toFixed(2),
+      latencia_ms: +(wifi ? azar(8, 35) : azar(25, 90)).toFixed(1), jitter_ms: +azar(1, 15).toFixed(1),
+      senal_dbm: dbm, barras: dbm == null ? null : Math.max(0, Math.min(4, Math.round((dbm + 120) / 10))),
+      lugar: elegir(["Interior", "Exterior"]), lat: +(-26.83 + azar(-0.03, 0.03)).toFixed(5), lon: +(-65.21 + azar(-0.03, 0.03)).toFixed(5),
+      precision_m: Math.round(azar(5, 40)), ubicacion_fuente: "GPS", ciudad: "San Miguel de Tucumán",
+      comentario: "DATO DE EJEMPLO (generado, no es una medición real)",
+    });
+  }
+  return lista;
+}
+
+// ---------- Estadística ----------
+function resumen(vals) {
+  const v = vals.filter((x) => x != null && !Number.isNaN(x)).sort((a, b) => a - b);
+  const n = v.length;
+  if (!n) return { n: 0 };
+  const media = v.reduce((a, b) => a + b, 0) / n;
+  const mediana = n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2;
+  const desvio = n > 1 ? Math.sqrt(v.reduce((a, b) => a + (b - media) ** 2, 0) / (n - 1)) : 0;
+  return { n, media, mediana, desvio, min: v[0], max: v[n - 1] };
+}
+const fmt = (x, d = 1) => (x == null || Number.isNaN(x) ? "—" : x.toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d }));
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function filtrados() {
+  const c = $("fConexion").value, e = $("fEmpresa").value;
+  return datos.filter((d) => (!c || d.conexion === c) && (!e || d.empresa === e));
+}
+function agrupar(lista, campo) {
+  const g = {};
+  for (const d of lista) { const k = d[campo] || "Sin dato"; (g[k] = g[k] || []).push(d); }
+  return g;
+}
+
+// ---------- Render ----------
+function render() {
+  const lista = filtrados();
+  const variable = $("fVariable").value, metrica = $("fMetrica").value;
+  const nombreVar = $("fVariable").selectedOptions[0].textContent;
+
+  $("kN").textContent = lista.length;
+  $("kBajada").textContent = fmt(resumen(lista.map((d) => d.bajada_mbps)).media);
+  $("kSubida").textContent = fmt(resumen(lista.map((d) => d.subida_mbps)).media);
+  $("kLat").textContent = fmt(resumen(lista.map((d) => d.latencia_ms)).media, 0);
+  $("kDatos").textContent = lista.length ? fmt((100 * lista.filter((d) => d.conexion === "Datos móviles").length) / lista.length, 0) : "—";
+
+  // Tabla de medidas por grupo
+  const grupos = agrupar(lista, variable);
+  const filas = Object.entries(grupos).map(([k, arr]) => [k, resumen(arr.map((d) => d[metrica]))]).sort((a, b) => (b[1].media ?? -1e9) - (a[1].media ?? -1e9));
+  $("tablaResumen").innerHTML = `<thead><tr><th>${esc(nombreVar)}</th><th class="num">n</th><th class="num">Media</th><th class="num">Mediana</th><th class="num">Desvío</th><th class="num">Mín</th><th class="num">Máx</th></tr></thead>
+    <tbody>${filas.map(([k, r]) => `<tr><td>${esc(k)}</td><td class="num">${r.n}</td><td class="num">${fmt(r.media)}</td><td class="num">${fmt(r.mediana)}</td><td class="num">${fmt(r.desvio)}</td><td class="num">${fmt(r.min)}</td><td class="num">${fmt(r.max)}</td></tr>`).join("") || '<tr><td colspan="7" class="muted">Todavía no hay mediciones. Hacé la primera desde “Hacer una medición”.</td></tr>'}</tbody>`;
+
+  // Gráficos
+  const conDatos = filas.filter(([, r]) => r.n);
+  $("tGrupo").textContent = `${ETIQ[metrica]}: promedio por ${nombreVar.toLowerCase()}`;
+  barras("gGrupo", conDatos.map(([k]) => k), conDatos.map(([, r]) => +r.media.toFixed(2)), ETIQ[metrica], true);
+
+  const vals = lista.map((d) => d[metrica]).filter((x) => x != null);
+  $("tHist").textContent = `Distribución: ${ETIQ[metrica].toLowerCase()}`;
+  const h = histograma(vals, 8);
+  barras("gHist", h.etiquetas, h.cuentas, "Cantidad de mediciones", false);
+
+  const cuenta = (campo) => Object.entries(agrupar(lista, campo)).map(([k, a]) => [k, a.length]).sort((a, b) => b[1] - a[1]);
+  const so = cuenta("so"), marca = cuenta("marca");
+  barras("gSO", so.map((x) => x[0]), so.map((x) => x[1]), "Cantidad", true);
+  barras("gMarca", marca.map((x) => x[0]), marca.map((x) => x[1]), "Cantidad", true);
+
+  teoria(lista);
+  dibujarMapa(lista);
+  tablaDatos(lista);
+}
+
+function teoria(lista) {
+  const T = window.TEORIA;
+  const B = parseFloat($("tB").value) || 20, temp = parseFloat($("tT").value);
+  const tC = Number.isNaN(temp) ? 25 : temp;
+  const ruido = T.ruidoTermicoDbm(B, tC);
+  $("tRuido").textContent = `Ruido térmico N = k·T·B = ${fmt(ruido)} dBm (${T.potenciaLegible(T.dbmAmW(ruido))}), con T = ${tC + 273} K.`;
+
+  // Dispersión señal vs bajada + correlación de Pearson
+  const conSenal = lista.filter((d) => d.senal_dbm != null && d.bajada_mbps != null);
+  const r = T.pearson(conSenal.map((d) => d.senal_dbm), conSenal.map((d) => d.bajada_mbps));
+  $("tPearson").textContent = r == null
+    ? "Hacen falta al menos 3 mediciones con señal en dBm para calcular la correlación."
+    : `Correlación de Pearson r = ${fmt(r, 2)} (n = ${conSenal.length}). ` +
+      (Math.abs(r) < 0.3 ? "Relación débil." : Math.abs(r) < 0.7 ? "Relación moderada." : "Relación fuerte.") +
+      (r > 0 ? " A mejor señal (menos negativa), más velocidad." : "");
+  const muted = css("--muted"), linea = css("--line"), fg = css("--fg");
+  if (graficos.gDisp) graficos.gDisp.destroy();
+  const empresas = [...new Set(conSenal.map((d) => d.empresa || "Sin dato"))];
+  graficos.gDisp = new Chart($("gDisp"), {
+    type: "scatter",
+    data: { datasets: empresas.map((e, i) => ({
+      label: e, backgroundColor: SERIE[i % SERIE.length], pointRadius: 4,
+      data: conSenal.filter((d) => (d.empresa || "Sin dato") === e).map((d) => ({ x: d.senal_dbm, y: d.bajada_mbps })),
+    })) },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: fg } } },
+      scales: {
+        x: { title: { display: true, text: "Señal (dBm)", color: fg }, ticks: { color: muted }, grid: { color: linea } },
+        y: { beginAtZero: true, title: { display: true, text: "Bajada (Mbps)", color: fg }, ticks: { color: muted }, grid: { color: linea } },
+      },
+    },
+  });
+
+  // Shannon por empresa (solo mediciones con dBm)
+  const porEmp = agrupar(conSenal, "empresa");
+  const filasS = Object.entries(porEmp).map(([emp, arr]) => {
+    // SNR y capacidad se calculan por medición y después se promedian
+    // Si la app Android midió la SINR real del módem y el ancho del canal, se usan esos valores
+    const bDe = (d) => (d.ancho_mhz != null ? d.ancho_mhz : B);
+    const snrs = arr.map((d) => (d.sinr_db != null ? d.sinr_db : T.snrDb(d.senal_dbm, bDe(d), tC, d.conexion)));
+    const dbm = resumen(arr.map((d) => d.senal_dbm)).media;
+    const snr = resumen(snrs).media;
+    const c = resumen(snrs.map((s, i) => T.shannonMbps(bDe(arr[i]), s))).media;
+    const med = resumen(arr.map((d) => d.bajada_mbps)).media;
+    return `<tr><td>${esc(emp)}</td><td class="num">${arr.length}</td><td class="num">${fmt(dbm)}</td><td class="num">${fmt(snr)}</td><td class="num">${fmt(c, 0)}</td><td class="num">${fmt(med)}</td><td class="num">${fmt((100 * med) / c, 0)} %</td></tr>`;
+  });
+  $("tablaShannon").innerHTML = `<thead><tr><th>Empresa</th><th class="num">n</th><th class="num">Señal media (dBm)</th><th class="num">SNR (dB)</th><th class="num">C Shannon (Mbps)</th><th class="num">Bajada medida</th><th class="num">Aprovech.</th></tr></thead>
+    <tbody>${filasS.join("") || '<tr><td colspan="7" class="muted">Sin mediciones con señal en dBm.</td></tr>'}</tbody>`;
+
+  // Tecnología vs máximo teórico (Unidad 7)
+  const movil = lista.filter((d) => d.conexion === "Datos móviles" && T.MAXIMOS[d.tecnologia]);
+  const filasT = ["2G", "3G", "4G", "5G"].map((tec) => {
+    const arr = movil.filter((d) => d.tecnologia === tec);
+    if (!arr.length) return "";
+    const s = resumen(arr.map((d) => d.bajada_mbps));
+    return `<tr><td>${tec}</td><td>${esc(T.MAXIMOS[tec].texto)}</td><td class="num">${arr.length}</td><td class="num">${fmt(s.media)}</td><td class="num">${fmt(s.max)}</td></tr>`;
+  });
+  $("tablaTec").innerHTML = `<thead><tr><th>Tec.</th><th>Máximo teórico (Unidad 7)</th><th class="num">n</th><th class="num">Bajada media</th><th class="num">Bajada máx.</th></tr></thead>
+    <tbody>${filasT.join("") || '<tr><td colspan="5" class="muted">Sin mediciones móviles con tecnología indicada.</td></tr>'}</tbody>`;
+}
+
+function histograma(vals, k) {
+  if (!vals.length) return { etiquetas: [], cuentas: [] };
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const ancho = (max - min) / k || 1;
+  const cuentas = new Array(k).fill(0);
+  for (const v of vals) cuentas[Math.min(k - 1, Math.floor((v - min) / ancho))]++;
+  const etiquetas = cuentas.map((_, i) => `${fmt(min + i * ancho, 0)}–${fmt(min + (i + 1) * ancho, 0)}`);
+  return { etiquetas, cuentas };
+}
+
+function barras(id, etiquetas, valores, nombre, multicolor) {
+  const fg = css("--fg"), muted = css("--muted"), linea = css("--line"), accent = css("--accent");
+  const colores = multicolor ? etiquetas.map((_, i) => SERIE[i % SERIE.length]) : accent;
+  if (graficos[id]) graficos[id].destroy();
+  graficos[id] = new Chart($(id), {
+    type: "bar",
+    data: { labels: etiquetas, datasets: [{ label: nombre, data: valores, backgroundColor: colores, borderRadius: 4 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => `${nombre}: ${fmt(c.parsed.y, 1)}` } } },
+      scales: {
+        x: { ticks: { color: muted }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { color: muted }, grid: { color: linea }, title: { display: true, text: nombre, color: fg } },
+      },
+    },
+  });
+}
+
+function colorBajada(v) { return v == null ? "#7F8C8D" : v < 5 ? "#BF3A2B" : v < 20 ? "#D98A00" : v < 100 ? "#2E9E5B" : "#1D55C0"; }
+function dibujarMapa(lista) {
+  if (!window.L) return;
+  if (!mapa) {
+    mapa = L.map("mapa").setView([-26.83, -65.21], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(mapa);
+  }
+  if (capa) capa.remove();
+  capa = L.layerGroup().addTo(mapa);
+  const pts = [];
+  for (const d of lista) {
+    if (d.lat == null || d.lon == null) continue;
+    pts.push([d.lat, d.lon]);
+    L.circleMarker([d.lat, d.lon], { radius: 7, color: "#fff", weight: 1, fillColor: colorBajada(d.bajada_mbps), fillOpacity: 0.9 })
+      .bindPopup(`<b>${esc(d.empresa || "?")}</b> · ${esc(d.conexion)} ${esc(d.tecnologia || "")}<br>
+        Bajada ${fmt(d.bajada_mbps)} Mbps · Subida ${fmt(d.subida_mbps)} Mbps<br>
+        Latencia ${fmt(d.latencia_ms, 0)} ms${d.senal_dbm != null ? ` · Señal ${d.senal_dbm} dBm` : ""}<br>
+        ${d.nombre_dispositivo ? `<b>${esc(d.nombre_dispositivo)}</b> · ` : ""}${esc(d.marca)} ${esc(d.modelo)} · ${esc(d.so)} ${esc(d.version_so)}`)
+      .addTo(capa);
+  }
+  if (pts.length) mapa.fitBounds(pts, { padding: [30, 30], maxZoom: 15 });
+}
+
+function tablaDatos(lista) {
+  const cols = [["fecha", "Fecha"], ["conexion", "Conexión"], ["tecnologia", "Tec."], ["empresa", "Empresa"], ["nombre_dispositivo", "Dispositivo"], ["marca", "Marca"], ["modelo", "Modelo"],
+    ["so", "SO"], ["bajada_mbps", "Bajada"], ["subida_mbps", "Subida"], ["latencia_ms", "Latencia"], ["senal_dbm", "dBm"], ["sinr_db", "SINR"], ["origen", "Origen"], ["ubicacion_fuente", "Ubicación"]];
+  const ord = [...lista].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+  $("tablaDatos").innerHTML = `<thead><tr>${cols.map(([k, t]) => `<th class="${NUMS.includes(k) ? "num" : ""}">${t}</th>`).join("")}</tr></thead>
+    <tbody>${ord.map((d) => `<tr class="${esEjemplo(d) ? "ejemplo" : ""}">${cols.map(([k]) => {
+      let v = d[k];
+      if (k === "fecha") v = v ? new Date(v).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) + (esEjemplo(d) ? " (ejemplo)" : "") : "";
+      return NUMS.includes(k) ? `<td class="num">${v == null ? "—" : fmt(v, k === "senal_dbm" || k === "latencia_ms" ? 0 : 1)}</td>` : `<td>${esc(v)}</td>`;
+    }).join("")}</tr>`).join("") || `<tr><td colspan="${cols.length}" class="muted">Sin mediciones.</td></tr>`}</tbody>`;
+}
+
+function descargarCSV() {
+  const lista = filtrados();
+  const celda = (v) => { const s = v == null ? "" : String(v); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  // Separador ";" y coma decimal para que Excel en español lo abra bien.
+  const lineas = [window.CAMPOS.join(";")].concat(lista.map((d) => window.CAMPOS.map((c) => {
+    const v = d[c]; return celda(typeof v === "number" ? String(v).replace(".", ",") : v);
+  }).join(";")));
+  const blob = new Blob(["﻿" + lineas.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `mediciones-senal-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+["fConexion", "fEmpresa", "fVariable", "fMetrica"].forEach((id) => $(id).addEventListener("change", render));
+["tB", "tT"].forEach((id) => $(id).addEventListener("input", () => teoria(filtrados())));
+$("btnActualizar").addEventListener("click", cargar);
+$("btnVivo").addEventListener("click", alternarVivo);
+// estadisticas.html#vivo abre directamente en modo en vivo
+if (location.hash === "#vivo") setTimeout(alternarVivo, 300);
+// En modo demo, una medición hecha en otra pestaña de este navegador aparece al instante
+window.addEventListener("storage", (e) => { if (e.key === "mediciones" && !CFG.SCRIPT_URL) cargar(); });
+$("btnCSV").addEventListener("click", descargarCSV);
+$("btnEjemplo").addEventListener("click", () => { escribirLocal(leerLocal().concat(generarEjemplo())); cargar(); });
+$("btnBorrarEjemplo").addEventListener("click", () => { escribirLocal(leerLocal().filter((d) => !esEjemplo(d))); cargar(); });
+cargar();
+</script>
+</body>
+</html>

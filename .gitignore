@@ -1,0 +1,9 @@
+# Compilación de Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+# Datos locales y documentos privados del grupo
+pc/mediciones_pc.csv
+pc/__pycache__/
+informe/

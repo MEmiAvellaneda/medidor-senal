@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícono: barras de señal sobre fondo azul -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp"
+    android:viewportWidth="48" android:viewportHeight="48">
+    <path android:fillColor="#1D55C0" android:pathData="M8,0h32a8,8 0 0 1 8,8v32a8,8 0 0 1 -8,8h-32a8,8 0 0 1 -8,-8v-32a8,8 0 0 1 8,-8z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M10,32h5v6h-5z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M18,25h5v13h-5z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M26,18h5v20h-5z"/>
+    <path android:fillColor="#F2A93B" android:pathData="M34,10h5v28h-5z"/>
+</vector>
